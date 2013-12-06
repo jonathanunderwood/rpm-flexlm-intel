@@ -1,0 +1,125 @@
+#!/bin/sh
+#
+# lmgrd.intel FlexLM license manager for Intel compiler
+#
+# chkconfig: 345 99 1
+# description: FlexLM license manager for Intel compiler
+#              
+
+### BEGIN INIT INFO
+# Provides: lmgrd.intel
+# Required-Start: $network $local_fs $remote_fs
+# Required-Stop: $network $local_fs
+# Should-Start: $network $local_fs
+# Should-Stop: $syslog
+# Default-Start: 3 4 5
+# Default-Stop: 0 1 2 6
+# Short-Description: Start and stop FlexLM license manager for Intel compiler
+# Description: Start and stop FlexLM license manager for Intel compiler
+### END INIT INFO
+
+# Source function library.
+. /etc/init.d/functions
+
+lmgrd="/usr/bin/lmgrd.intel"
+lmutil="/usr//bin/lmutil"
+prog="lmgrd.intel"
+lockfile=/var/lock/subsys/$prog
+
+LICENSE="/usr/share/intel/intel.lic"
+LOGFILE="/var/log/lmgrd.intel"
+
+[ -e /etc/sysconfig/$prog ] && . /etc/sysconfig/$prog
+
+lockfile=/var/lock/subsys/$prog
+
+[ -x $lmgrd ] || exit 5
+[ -x $lmutil ] || exit 5
+[ -f $LICENSE ] || exit 6
+
+checklog() {
+   [ -f $LOGFILE ] || /bin/touch $LOGFILE
+   /bin/chown intel:intel $LOGFILE
+}
+
+
+start() {
+    echo -n $"Starting $prog: "
+    checklog
+    daemon --user intel $lmgrd -c $LICENSE -l $LOGFILE 
+    retval=$?
+    echo
+    if [ $retval -eq 0 ] ; then
+	touch $lockfile
+    fi
+    return $retval
+}
+
+stop() {
+    echo -n $"Stopping $prog: "
+    $lmutil lmdown -c $LICENSE -q >> $LOGFILE
+    retval=$?
+    echo
+    if [ $retval -eq 0 ] ; then
+	rm -f $lockfile
+	success
+    else
+	failure
+    fi
+    return $retval
+}
+
+restart() {
+    stop
+    start
+}
+
+reload() {
+    restart
+}
+
+force_reload() {
+    restart
+}
+
+rh_status() {
+    $lmutil lmstat -a -c $LICENSE 
+    return $?
+}
+
+rh_status_q() {
+    rh_status >/dev/null 2>&1
+}
+
+
+case "$1" in
+    start)
+#        rh_status_q && exit 0
+        $1
+        ;;
+    stop)
+        rh_status_q || exit 0
+        $1
+        ;;
+    restart)
+        $1
+        ;;
+    reload)
+        rh_status_q || exit 7
+        $1
+        ;;
+    force-reload)
+        force_reload
+        ;;
+    status)
+        rh_status
+        ;;
+    condrestart|try-restart)
+        rh_status_q || exit 0
+        restart
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
+        exit 2
+esac
+exit $?
